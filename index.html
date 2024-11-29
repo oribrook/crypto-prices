@@ -4,22 +4,231 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crypto Prices</title>
-    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 350px;
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .container:hover {
+            transform: scale(1.02);
+        }
+        h4 {
+            color: #4a4a4a;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            font-weight: 700;
+        }
+        #crypto-list, #extra-crypto-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+        #crypto-list li, #extra-crypto-list li {
+            background-color: #f4f4f9;
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+        #crypto-list li:hover, #extra-crypto-list li:hover {
+            background-color: #e6e6f0;
+        }
+        .add-crypto {
+            display: flex;
+            margin-top: 20px;
+        }
+        #crypto-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 2px solid #764ba2;
+            border-radius: 8px 0 0 8px;
+            font-size: 1em;
+        }
+        #fetch-button {
+            padding: 10px 15px;
+            background-color: #764ba2;
+            color: white;
+            border: none;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #fetch-button:hover {
+            background-color: #5a3a7a;
+        }
+        .error {
+            color: #d9534f;
+            background-color: #f2dede !important;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h4>Crypto Prices</h4>
+        <h4>Crypto Price Tracker</h4>
         <ul id="crypto-list">
             <!-- Prices will be dynamically added here -->
         </ul>
         <div class="add-crypto">
-            <input type="text" id="crypto-input" placeholder="Enter coin symbol (e.g., BTC)" />
+            <input type="text" id="crypto-input" placeholder="Enter coin symbol (e.g., BTC, DOGE)" />
             <button id="fetch-button">Fetch Price</button>
         </div>
         <ul id="extra-crypto-list">
             <!-- Extra fetched prices will be added here -->
         </ul>
     </div>
-    <script src="script.js"></script>
+    <script>
+        const cryptoList = document.getElementById("crypto-list");
+        const extraCryptoList = document.getElementById("extra-crypto-list");
+        const cryptoInput = document.getElementById("crypto-input");
+        const fetchButton = document.getElementById("fetch-button");
+
+        const cryptos = ["BTC", "ETH", "XRP", "ZEC", "MATIC", "ADA", "DOGE"];
+        const urls = [
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple,zcash,polygon,cardano,dogecoin&vs_currencies=usd",
+            "https://api.coincap.io/v2/assets"
+        ];
+
+        // Fetch prices on page load
+        fetchPrices();
+
+        // Fetch prices for predefined coins
+        async function fetchPrices() {
+            try {
+                const response = await fetch(urls[0]);
+                if (!response.ok) throw new Error("API 1 failed");
+                const data = await response.json();
+                displayPricesFromApi1(data);
+            } catch {
+                try {
+                    const response = await fetch(urls[1]);
+                    if (!response.ok) throw new Error("API 2 failed");
+                    const data = await response.json();
+                    displayPricesFromApi2(data);
+                } catch (error) {
+                    displayError(cryptoList, "Both APIs failed. Please try again later.");
+                }
+            }
+        }
+
+        // Fetch price for user-input coin
+        fetchButton.addEventListener("click", async () => {
+            const symbol = cryptoInput.value.trim().toUpperCase();
+            if (!symbol) return;
+            
+            // Mapping some common alternative symbols
+            const symbolMap = {
+                'DOGE': 'dogecoin',
+                'BTC': 'bitcoin',
+                'ETH': 'ethereum',
+                'XRP': 'ripple',
+                'ADA': 'cardano'
+            };
+
+            const coinId = symbolMap[symbol] || symbol.toLowerCase();
+
+            try {
+                const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+                if (!response.ok) throw new Error("API 1 failed");
+                const data = await response.json();
+                
+                if (data[coinId]) {
+                    const price = data[coinId].usd;
+                    displayExtraPrice(symbol, price);
+                    cryptoInput.value = ''; // Clear input after successful fetch
+                } else {
+                    displayError(extraCryptoList, `Price for ${symbol} not found.`);
+                }
+            } catch {
+                displayError(extraCryptoList, `Failed to fetch ${symbol}. Please try again.`);
+            }
+        });
+
+        // Display prices for API 1 (CoinGecko)
+        function displayPricesFromApi1(data) {
+            const prices = {
+                BTC: data.bitcoin.usd,
+                ETH: data.ethereum.usd,
+                XRP: data.ripple.usd,
+                ZEC: data.zcash.usd,
+                MATIC: data.polygon.usd,
+                ADA: data.cardano.usd,
+                DOGE: data.dogecoin.usd
+            };
+            displayPrices(cryptoList, prices);
+        }
+
+        // Display prices for API 2 (CoinCap)
+        function displayPricesFromApi2(data) {
+            const prices = {};
+            const filtered = data.data.filter(coin =>
+                cryptos.includes(coin.symbol.toUpperCase())
+            );
+            filtered.forEach(coin => {
+                prices[coin.symbol.toUpperCase()] = parseFloat(coin.priceUsd).toFixed(2);
+            });
+            displayPrices(cryptoList, prices);
+        }
+
+        // Display a list of prices
+        function displayPrices(listElement, prices) {
+            listElement.innerHTML = "";
+            for (const [crypto, price] of Object.entries(prices)) {
+                const li = document.createElement("li");
+                const formattedPrice = parseFloat(price).toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD'
+                });
+                li.innerHTML = `
+                    <span>${crypto}</span>
+                    <strong>${formattedPrice}</strong>
+                `;
+                listElement.appendChild(li);
+            }
+        }
+
+        // Display a single coin's price
+        function displayExtraPrice(symbol, price) {
+            const li = document.createElement("li");
+            const formattedPrice = parseFloat(price).toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            });
+            li.innerHTML = `
+                <span>${symbol}</span>
+                <strong>${formattedPrice}</strong>
+            `;
+            extraCryptoList.appendChild(li);
+        }
+
+        // Display error message
+        function displayError(listElement, message) {
+            const li = document.createElement("li");
+            li.className = "error";
+            li.textContent = message;
+            listElement.appendChild(li);
+        }
+    </script>
 </body>
 </html>
